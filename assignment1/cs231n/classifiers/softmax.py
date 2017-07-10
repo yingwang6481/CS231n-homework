@@ -29,7 +29,31 @@ def softmax_loss_naive(W, X, y, reg):
   # here, it is easy to run into numeric instability. Don't forget the        #
   # regularization!                                                           #
   #############################################################################
-  pass
+  num_train=X.shape[0]
+  num_class=W.shape[1]
+  for i in range(num_train):
+    scores=np.dot(X[i],W)
+    shift_scores=scores-np.max(scores)
+    exp_scores=np.exp(shift_scores)
+    exp_sum=np.sum(exp_scores)
+    Li=-shift_scores[y[i]]+np.log(exp_sum)
+
+    loss +=Li
+
+
+    for j in range(num_class):
+      if j==y[i]:
+        ratio = exp_scores[y[i]]/exp_sum
+        dW[:,j] += -X[i].T + ratio * X[i].T
+      else:
+        ratio = exp_scores[j]/exp_sum
+        dW[:,j] += ratio * X[i].T
+  dW /= num_train
+
+  dW += reg * W
+
+  loss /= num_train
+  loss += 0.5 * reg * np.sum(W * W)
   #############################################################################
   #                          END OF YOUR CODE                                 #
   #############################################################################
@@ -46,6 +70,8 @@ def softmax_loss_vectorized(W, X, y, reg):
   # Initialize the loss and gradient to zero.
   loss = 0.0
   dW = np.zeros_like(W)
+  num_train = X.shape[0]
+  num_class = W.shape[1]
 
   #############################################################################
   # TODO: Compute the softmax loss and its gradient using no explicit loops.  #
@@ -53,7 +79,21 @@ def softmax_loss_vectorized(W, X, y, reg):
   # here, it is easy to run into numeric instability. Don't forget the        #
   # regularization!                                                           #
   #############################################################################
-  pass
+  scores = np.dot(X,W)
+  shift_socres = scores - np.max(scores)
+  sy=shift_socres[np.arange(num_train),y]
+  sy = np.reshape(sy,(num_train,1))
+  sigma=np.sum(np.exp(shift_socres),axis=1,keepdims=True)
+  loss=np.sum(-sy+np.log(sigma))
+  loss /=num_train
+  loss += 0.5 * reg * np.sum(W*W)
+
+  temp = np.exp(shift_socres)/sigma
+  temp[np.arange(num_train),y] -= 1
+  dW=np.dot(X.T,temp)/num_train + reg * W
+
+
+
   #############################################################################
   #                          END OF YOUR CODE                                 #
   #############################################################################
