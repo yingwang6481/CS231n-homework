@@ -194,10 +194,16 @@ class FullyConnectedNet(object):
     for i in range(self.num_layers + 1):
       if i ==0:
         continue
-      W = np.random.normal(0,weight_scale,[all_dims[i-1],all_dims[i]])
+      W = weight_scale * np.random.normal(0,size=[all_dims[i-1],all_dims[i]])
       b = np.zeros(all_dims[i])
       self.params['W'+str(i)] = W
       self.params['b'+str(i)] = b
+      if i != self.num_layers:
+        gamma = np.ones(all_dims[i])
+        beta = np.zeros(all_dims[i])
+        self.params['gamma'+str(i)] = gamma
+        self.params['beta'+str(i)] = beta
+
 
     ############################################################################
     #                             END OF YOUR CODE                             #
@@ -258,23 +264,36 @@ class FullyConnectedNet(object):
     X = X.reshape(X.shape[0],-1)
     params_size = 0
     cache={}
-    cache['affine']={}
-    cache['relu']={}
-    for i in range(self.num_layers +1):
+
+    for i in xrange(self.num_layers ):
+
       if i == 0:
         h = np.copy(X)
         continue
       W = self.params['W'+str(i)]
       b = self.params['b'+str(i)]
       params_size += np.sum(W * W)
-      cache['affine'][i] = h
-      h = np.dot(h,W) + b
-      if i != self.num_layers:
-        cache['relu'][i] = h
-        h[h<0] = 0
 
+      if self.use_batchnorm:
+        gamma = self.params['gamma'+str(i)]
+        beta = self.params['beta'+str(i)]
+        h,cache[i] = affine_bn_relu_forward(h,W,b,gamma,beta,self.bn_params[i-1])
+      else:
 
-    scores = h
+        h,cache[i] = affine_relu_forward(h,W,b)
+      # h = np.dot(h,W) + b
+      # if i != self.num_layers:
+      #   if self.use_batchnorm:
+      #     gamma = self.params['gamma'+str(i)]
+      #     beta = self.params['beta'+str(i)]
+      #     h,cache['bn'][i] = batchnorm_forward(h,gamma,beta,self.bn_params[i-1])
+      #
+      #   cache['relu'][i] = h
+      #   h[h<0] = 0
+    W = self.params['W'+str(self.num_layers)]
+    b = self.params['b'+str(self.num_layers)]
+    params_size += np.sum(W * W)
+    scores,cache[self.num_layers] = affine_forward(h,W,b)
 
 
     ############################################################################
@@ -302,31 +321,27 @@ class FullyConnectedNet(object):
     reg = self.reg
     num_batch = X.shape[0]
 
-    shift_scores = scores - np.max(scores,axis=1,keepdims=True)
-    softmax_output = np.exp(shift_scores)/np.sum(np.exp(shift_scores),axis=1,keepdims=True)
-    loss = np.sum(-np.log(softmax_output[range(num_batch),y])) / num_batch
+
+    loss,dhout = softmax_loss(scores,y)
     loss += 0.5 * reg * params_size
+    dx,dw,db = affine_backward(dhout,cache[self.num_layers])
 
-    softmax_output[range(num_batch),y] -= 1
-    lastW = self.params['W'+str(self.num_layers)]
+    grads['W'+str(self.num_layers)] = dw +  self.reg * self.params['W'+str(self.num_layers)]
+    grads['b' + str(self.num_layers)] = db
 
-    d_lastlayerW = np.dot(cache['affine'][self.num_layers].T,softmax_output) / num_batch + reg * lastW
-    d_lastlayerb = np.sum(softmax_output,axis=0) / num_batch
-    grads['W'+str(self.num_layers)] = d_lastlayerW
-    grads['b' + str(self.num_layers)] = d_lastlayerb
 
-    dout = np.dot(softmax_output,lastW.T)
-    for i in range(self.num_layers -1 ):
+    for i in xrange(self.num_layers -1 ):
+
       number = self.num_layers -1 - i
-      W = self.params['W'+str(number)]
+      if self.use_batchnorm:
+        dx, dw, db, dgamma, dbeta = affine_bn_relu_backward(dx,cache[number])
+        grads['gamma'+str(number)] = dgamma
+        grads['beta'+str(number)] = dbeta
+      else:
+        dx, dw, db=affine_relu_backward(dx,cache[number])
+      grads['W' + str(number)] = dw + self.reg * self.params['W'+str(number)]
+      grads['b' + str(number)] = db
 
-      d_relu = dout * (cache['relu'][number] > 0)
-      d_W = np.dot(cache['affine'][number].T,d_relu) / num_batch + reg * W
-      d_b = np.sum(d_relu,axis=0) / num_batch
-      if number != 1 :
-        dout = np.dot(d_relu,W.T)
-      grads['W' + str(number)] = d_W
-      grads['b' + str(number)] = d_b
 
     ############################################################################
     #                             END OF YOUR CODE                             #

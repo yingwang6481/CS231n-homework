@@ -80,8 +80,7 @@ def relu_forward(x):
   #############################################################################
   # TODO: Implement the ReLU forward pass.                                    #
   #############################################################################
-  out = np.copy(x)
-  out[out < 0] = 0
+  out = x * (x>0)
 
   #############################################################################
   #                             END OF YOUR CODE                              #
@@ -153,7 +152,8 @@ def batchnorm_forward(x, gamma, beta, bn_param):
   mode = bn_param['mode']
   eps = bn_param.get('eps', 1e-5)
   momentum = bn_param.get('momentum', 0.9)
-
+  # bn_param['eps'] = eps
+  # bn_param['momentum'] = momentum
   N, D = x.shape
   running_mean = bn_param.get('running_mean', np.zeros(D, dtype=x.dtype))
   running_var = bn_param.get('running_var', np.zeros(D, dtype=x.dtype))
@@ -283,11 +283,37 @@ def batchnorm_backward_alt(dout, cache):
   # should be able to compute gradients with respect to the inputs in a       #
   # single statement; our implementation fits on a single 80-character line.  #
   #############################################################################
-  pass
+  v = cache['sample_var']
+  eps =cache['eps']
+  dbeta = np.sum(dout,axis=0)
+  dgamma = np.sum(cache['norm_X'] * dout , axis=0)
+  d_normX = dout * cache['gamma']
+  x = cache['x']
+  E = cache ['sample_mean']
+  N = x.shape[0]
+  d_x = 1 / np.sqrt (v + eps) * d_normX
+  d_v = np.sum(d_normX * (x - E) * -0.5 * np.power(v + eps,-1.5),axis=0)
+  d_E = np.sum(d_normX * -1 / np.sqrt(v + eps),axis=0) + d_v * np.mean(-2.0  * (x - E) ,axis=0)
+  dx = d_x + d_v * (2.0 * (x - E) / N) + 1.0 * d_E / N
+
+  # gamma = cache['gamma']
+  # x = cache['x']
+  # sample_mean = cache['sample_mean']
+  # sample_var = cache['sample_var']
+  # eps = cache['eps']
+  # x_hat = cache['norm_X']
+  # N = x.shape[0]
+  # dx_hat = dout * gamma
+  # dvar = np.sum(dx_hat * (x - sample_mean) * -0.5 * np.power(sample_var + eps, -1.5), axis=0)
+  # dmean = np.sum(dx_hat * -1 / np.sqrt(sample_var + eps), axis=0) + dvar * np.mean(-2 * (x - sample_mean), axis=0)
+  # dx = 1 / np.sqrt(sample_var + eps) * dx_hat + dvar * 2.0 / N * (x - sample_mean) + 1.0 / N * dmean
+  # dgamma = np.sum(x_hat * dout, axis=0)
+  # dbeta = np.sum(dout, axis=0)
+
   #############################################################################
   #                             END OF YOUR CODE                              #
   #############################################################################
-  
+
   return dx, dgamma, dbeta
 
 
